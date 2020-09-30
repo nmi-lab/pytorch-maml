@@ -6,8 +6,11 @@ from torchmeta.toy import Sinusoid
 from torchmeta.transforms import ClassSplitter, Categorical, Rotation
 from torchvision.transforms import ToTensor, Resize, Compose
 
-from maml.model import ModelConvOmniglot, ModelConvMiniImagenet, ModelMLPSinusoid
+from maml.model import ModelConvOmniglot, ModelConvMiniImagenet, ModelMLPSinusoid, ModelConvDoubleNMNIST, ModelDECOLLE
 from maml.utils import ToTensor1D
+from torchmeta.utils.data import CombinationMetaDataset
+
+
 
 Benchmark = namedtuple('Benchmark', 'meta_train_dataset meta_val_dataset '
                                     'meta_test_dataset model loss_function')
@@ -18,6 +21,7 @@ def get_benchmark_by_name(name,
                           num_shots,
                           num_shots_test,
                           hidden_size=None):
+
     dataset_transform = ClassSplitter(shuffle=True,
                                       num_train_per_class=num_shots,
                                       num_test_per_class=num_shots_test)
@@ -97,6 +101,70 @@ def get_benchmark_by_name(name,
 
         model = ModelConvMiniImagenet(num_ways, hidden_size=hidden_size)
         loss_function = F.cross_entropy
+
+    elif name == 'doublenmnist':
+        from torchneuromorphic.doublenmnist_torchmeta.doublenmnist_dataloaders import DoubleNMNIST,Compose,ClassNMNISTDataset,CropDims,Downsample,ToCountFrame,ToTensor,ToEventSum,Repeat,toOneHot
+        from torchneuromorphic.utils import plot_frames_imshow
+        from matplotlib import pyplot as plt
+        from torchmeta.utils.data import CombinationMetaDataset
+
+        root = 'data/nmnist/n_mnist.hdf5'
+        chunk_size = 300
+        ds = 2
+        dt = 1000
+        transform = None
+        target_transform = None
+
+        size = [2, 32//ds, 32//ds]
+
+        transform = Compose([
+            CropDims(low_crop=[0,0], high_crop=[32,32], dims=[2,3]),
+            Downsample(factor=[dt,1,ds,ds]),
+            ToEventSum(T = chunk_size, size = size),
+            ToTensor()])
+
+        if target_transform is None:
+            target_transform = Compose([Repeat(chunk_size), toOneHot(num_ways)])
+
+        loss_function = F.cross_entropy
+
+        meta_train_dataset = ClassSplitter(DoubleNMNIST(root = root, meta_train=True, transform = transform, target_transform = target_transform, chunk_size=chunk_size,  num_classes_per_task=num_ways), num_train_per_class = num_shots, num_test_per_class = num_shots_test)
+        meta_val_dataset = ClassSplitter(DoubleNMNIST(root = root, meta_val=True, transform = transform, target_transform = target_transform, chunk_size=chunk_size,  num_classes_per_task=num_ways), num_train_per_class = num_shots, num_test_per_class = num_shots_test)
+        meta_test_dataset = ClassSplitter(DoubleNMNIST(root = root, meta_test=True, transform = transform, target_transform = target_transform, chunk_size=chunk_size,  num_classes_per_task=num_ways), num_train_per_class = num_shots, num_test_per_class = num_shots_test)
+
+        model = ModelConvDoubleNMNIST(num_ways, hidden_size=hidden_size)
+
+    elif name == 'doublenmnistsequence':
+        from torchneuromorphic.doublenmnist_torchmeta.doublenmnist_dataloaders import DoubleNMNIST,Compose,ClassNMNISTDataset,CropDims,Downsample,ToCountFrame,ToTensor,ToEventSum,Repeat,toOneHot
+        from torchneuromorphic.utils import plot_frames_imshow
+        from matplotlib import pyplot as plt
+        from torchmeta.utils.data import CombinationMetaDataset
+
+        root = 'data/nmnist/n_mnist.hdf5'
+        chunk_size = 300
+        ds = 2
+        dt = 1000
+        transform = None
+        target_transform = None
+
+        size = [2, 32//ds, 32//ds]
+
+        transform = Compose([
+            CropDims(low_crop=[0,0], high_crop=[32,32], dims=[2,3]),
+            Downsample(factor=[dt,1,ds,ds]),
+            ToCountFrame(T = chunk_size, size = size),
+            ToTensor()])
+
+        if target_transform is None:
+            target_transform = Compose([Repeat(chunk_size), toOneHot(num_ways)])
+
+        loss_function = F.cross_entropy
+
+        meta_train_dataset = ClassSplitter(DoubleNMNIST(root = root, meta_train=True, transform = transform, target_transform = target_transform, chunk_size=chunk_size,  num_classes_per_task=num_ways), num_train_per_class = num_shots, num_test_per_class = num_shots_test)
+        meta_val_dataset = ClassSplitter(DoubleNMNIST(root = root, meta_val=True, transform = transform, target_transform = target_transform, chunk_size=chunk_size,  num_classes_per_task=num_ways), num_train_per_class = num_shots, num_test_per_class = num_shots_test)
+        meta_test_dataset = ClassSplitter(DoubleNMNIST(root = root, meta_test=True, transform = transform, target_transform = target_transform, chunk_size=chunk_size,  num_classes_per_task=num_ways), num_train_per_class = num_shots, num_test_per_class = num_shots_test)
+
+        model = ModelDECOLLE(num_ways)
 
     else:
         raise NotImplementedError('Unknown dataset `{0}`.'.format(name))

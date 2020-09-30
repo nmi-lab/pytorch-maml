@@ -37,12 +37,13 @@ class MetaConvModel(MetaModule):
            for Fast Adaptation of Deep Networks. International Conference on
            Machine Learning (ICML) (https://arxiv.org/abs/1703.03400)
     """
-    def __init__(self, in_channels, out_features, hidden_size=64, feature_size=64):
+    def __init__(self, in_channels, out_features, hidden_size=64, feature_size=64, remove_time_dim = False):
         super(MetaConvModel, self).__init__()
         self.in_channels = in_channels
         self.out_features = out_features
         self.hidden_size = hidden_size
         self.feature_size = feature_size
+        self.remove_time_dim = remove_time_dim
 
         self.features = MetaSequential(OrderedDict([
             ('layer1', conv_block(in_channels, hidden_size, kernel_size=3,
@@ -57,6 +58,7 @@ class MetaConvModel(MetaModule):
         self.classifier = MetaLinear(feature_size, out_features, bias=True)
 
     def forward(self, inputs, params=None):
+        if self.remove_time_dim: inputs = inputs[:,0]
         features = self.features(inputs, params=self.get_subdict(params, 'features'))
         features = features.view((features.size(0), -1))
         logits = self.classifier(features, params=self.get_subdict(params, 'classifier'))
@@ -106,6 +108,71 @@ def ModelConvOmniglot(out_features, hidden_size=64):
     return MetaConvModel(1, out_features, hidden_size=hidden_size,
                          feature_size=hidden_size)
 
+def ModelConvDoubleNMNIST(out_features, hidden_size=64):
+    return MetaConvModel(2, out_features, hidden_size=hidden_size,
+                         feature_size=256, remove_time_dim=True)
+
+def ModelDECOLLE(out_features):
+    from .meta_lenet_decolle import MetaLenetDECOLLE, DECOLLELoss, LIFLayerVariableTau, MetaLIFLayer, MetaLIFLayerNonorm, TimeWrappedMetaLenetDECOLLE
+    from decolle.utils import parse_args, prepare_experiment, cross_entropy_one_hot
+    import datetime, os, socket, tqdm
+    import torch
+
+    params_file = 'maml/decolle_params.yml'
+    with open(params_file, 'r') as f:
+        import yaml
+        params = yaml.load(f)
+    verbose = True
+
+    #d, t = next(iter(gen_train))
+    input_shape = params['input_shape']
+    ## Create Model, Optimizer and Loss
+    net = TimeWrappedMetaLenetDECOLLE(
+                        out_channels=out_features,
+                        Nhid=params['Nhid'],
+                        Mhid=params['Mhid'],
+                        kernel_size=params['kernel_size'],
+                        pool_size=params['pool_size'],
+                        stride = params['stride'],
+                        input_shape=params['input_shape'],
+                        alpha=params['alpha'],
+                        alpharp=params['alpharp'],
+                        beta=params['beta'],
+                        num_conv_layers=params['num_conv_layers'],
+                        num_mlp_layers=params['num_mlp_layers'],
+                        lc_ampl=params['lc_ampl'],
+                        lif_layer_type = MetaLIFLayerNonorm,
+                        method=params['learning_method'],
+                        with_output_layer=True).cuda()
+
+    #Makes the network 16 bit.
+    #net = net.half()
+
+
+    opt = torch.optim.Adamax(net.get_trainable_parameters(), lr=params['learning_rate'], betas=params['betas'], eps=1e-4)
+
+    if 'loss_scope' in params and params['loss_scope'] == 'bptt':
+        print('Using BPTT')
+        loss = [None for i in range(len(net))]
+        loss[-1] = torch.nn.SmoothL1Loss()
+
+        if net.with_output_layer:
+            loss[-1] = cross_entropy_one_hot
+            loss[-2] = torch.nn.MSELoss()
+        decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=params['reg_l'])
+    else:
+        loss = [torch.nn.SmoothL1Loss() for i in range(len(net))]
+
+        if net.with_output_layer:
+            loss[-1] = cross_entropy_one_hot
+            loss[-2] = torch.nn.MSELoss()
+        decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=params['reg_l'])
+
+    ##Initialize
+    net.init_parameters(torch.zeros([1,params['chunk_size_train']]+params['input_shape']).cuda())
+
+    return net
+
 def ModelConvMiniImagenet(out_features, hidden_size=64):
     return MetaConvModel(3, out_features, hidden_size=hidden_size,
                          feature_size=5 * 5 * hidden_size)
@@ -114,4 +181,4 @@ def ModelMLPSinusoid(hidden_sizes=[40, 40]):
     return MetaMLPModel(1, 1, hidden_sizes)
 
 if __name__ == '__main__':
-    model = ModelMLPSinusoid()
+    model = ModelDECOLLE(10)
