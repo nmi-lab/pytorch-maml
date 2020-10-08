@@ -149,24 +149,24 @@ def ModelDECOLLE(out_features):
     #net = net.half()
 
 
-    opt = torch.optim.Adamax(net.get_trainable_parameters(), lr=params['learning_rate'], betas=params['betas'], eps=1e-4)
+#     opt = torch.optim.Adamax(net.get_trainable_parameters(), lr=params['learning_rate'], betas=params['betas'], eps=1e-4)
 
-    if 'loss_scope' in params and params['loss_scope'] == 'bptt':
-        print('Using BPTT')
-        loss = [None for i in range(len(net))]
-        loss[-1] = torch.nn.SmoothL1Loss()
+#     if 'loss_scope' in params and params['loss_scope'] == 'bptt':
+#         print('Using BPTT')
+#         loss = [None for i in range(len(net))]
+#         loss[-1] = torch.nn.SmoothL1Loss()
 
-        if net.with_output_layer:
-            loss[-1] = cross_entropy_one_hot
-            loss[-2] = torch.nn.MSELoss()
-        decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=params['reg_l'])
-    else:
-        loss = [torch.nn.SmoothL1Loss() for i in range(len(net))]
+#         if net.with_output_layer:
+#             loss[-1] = cross_entropy_one_hot
+#             loss[-2] = torch.nn.MSELoss()
+#         decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=params['reg_l'])
+#     else:
+#         loss = [torch.nn.SmoothL1Loss() for i in range(len(net))]
 
-        if net.with_output_layer:
-            loss[-1] = cross_entropy_one_hot
-            loss[-2] = torch.nn.MSELoss()
-        decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=params['reg_l'])
+#         if net.with_output_layer:
+#             loss[-1] = cross_entropy_one_hot
+#             loss[-2] = torch.nn.MSELoss()
+#         decolle_loss = DECOLLELoss(net = net, loss_fn = loss, reg_l=params['reg_l'])
 
     ##Initialize
     net.init_parameters(torch.zeros([1,params['chunk_size_train']]+params['input_shape']).cuda())
