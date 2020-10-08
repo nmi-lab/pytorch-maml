@@ -1,4 +1,10 @@
-# Model-Agnostic Meta-Learning
+# Model-Agnostic Meta-Learning (METAL Challenge)
+
+ run train 'data' --output-folder='logs/run1_kshot1_seq' --dataset='doublenmnistsequence' --use-cuda --batch-size=5 --verbose --meta-lr=1.2e-4 --step-size=0.1 --num-steps=1 --num-workers=8
+ 
+ 
+ 
+# Original Documentation
 [![Documentation](https://img.shields.io/badge/1.5-PyTorch-EE4C2C)](https://pytorch.org/)
 
 An implementation of Model-Agnostic Meta-Learning (MAML) in [PyTorch](https://pytorch.org/) with [Torchmeta](https://github.com/tristandeleu/pytorch-meta).
